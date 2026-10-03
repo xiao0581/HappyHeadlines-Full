@@ -1,0 +1,129 @@
+services:
+  article-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: articles
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - article-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d articles"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  comment-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: comments
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - comment-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d comments"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  article-cache:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - article-cache-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  comment-cache:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - comment-cache-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  article-service:
+    build:
+      context: ./apps/article-service
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__ArticleDb: Host=article-db;Port=5432;Database=articles;Username=postgres;Password=postgres
+      Redis__ConnectionString: article-cache:6379
+      Cache__RefreshSeconds: 30
+      Cache__TtlSeconds: 120
+      Cache__RecentDays: 14
+    ports:
+      - "5001:8080"
+    depends_on:
+      article-db:
+        condition: service_healthy
+      article-cache:
+        condition: service_healthy
+
+  comment-service:
+    build:
+      context: ./apps/comment-service
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__CommentDb: Host=comment-db;Port=5432;Database=comments;Username=postgres;Password=postgres
+      Redis__ConnectionString: comment-cache:6379
+      Cache__MaxArticles: 30
+    ports:
+      - "5002:8080"
+    depends_on:
+      comment-db:
+        condition: service_healthy
+      comment-cache:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - article-service
+      - comment-service
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  web:
+    build:
+      context: ./apps/web
+    ports:
+      - "8080:80"
+    depends_on:
+      - article-service
+      - comment-service
+
+volumes:
+  article-db-data:
+  comment-db-data:
+  article-cache-data:
+  comment-cache-data:
+  prometheus-data:
+  grafana-data:
