@@ -1,521 +1,356 @@
 <!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-<head>
-  <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1"
-  />
+    <title>HappyHeadlines Cache Demo</title>
 
-  <title>HappyHeadlines Cache Demo</title>
-
-  <style>
-
-    body {
-      font-family: system-ui, sans-serif;
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 24px;
-      background: #f6f7f8;
-      color: #17212b;
-    }
-
-    h1 {
-      margin-bottom: 4px;
-    }
-
-    .sub {
-      color: #5a6570;
-      margin-top: 0;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
-
-    .card {
-      background: white;
-      border-radius: 14px;
-      padding: 18px;
-      box-shadow: 0 2px 10px rgba(0,0,0,.06);
-    }
-
-    button {
-      cursor: pointer;
-      padding: 8px 12px;
-      border-radius: 8px;
-      border: 1px solid #ccd2d8;
-      background: white;
-      margin-right: 6px;
-      margin-bottom: 6px;
-    }
-
-    button:hover {
-      background: #f1f3f5;
-    }
-
-    button:disabled {
-      opacity: 0.6;
-      cursor: wait;
-    }
-
-    .article {
-      border-bottom: 1px solid #eee;
-      padding: 10px 0;
-    }
-
-    .badge {
-      display: inline-block;
-      font-size: 12px;
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: #eef2f5;
-      margin-left: 8px;
-    }
-
-    .info-box {
-      background: #f7f9fb;
-      border: 1px solid #dfe5ea;
-      padding: 12px;
-      border-radius: 10px;
-      margin: 12px 0;
-    }
-
-    .old-demo {
-      background: #fff8e8;
-      border: 1px solid #ead9a4;
-      padding: 14px;
-      border-radius: 10px;
-      margin-top: 15px;
-    }
-
-    .lru-demo {
-      background: #eef7ff;
-      border: 1px solid #b8d9f5;
-      padding: 14px;
-      border-radius: 10px;
-      margin-top: 18px;
-    }
-
-    input,
-    textarea {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 9px;
-      margin: 5px 0 10px;
-      border: 1px solid #ccd2d8;
-      border-radius: 8px;
-    }
-
-    pre {
-      white-space: pre-wrap;
-      background: #111820;
-      color: #e8eef4;
-      padding: 12px;
-      border-radius: 8px;
-      min-height: 48px;
-      overflow-x: auto;
-    }
-
-    a {
-      color: #1267c4;
-    }
-
-    #selectedDate {
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-
-    #cacheWindowInfo {
-      color: #5a6570;
-      margin-top: 0;
-    }
-
-    #load30Status {
-      font-weight: 600;
-      margin-left: 8px;
-    }
-
-    @media (max-width: 800px) {
-      .grid {
-        grid-template-columns: 1fr;
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px;
+        background: #f6f7f8;
+        color: #17212b;
       }
-    }
 
-  </style>
-</head>
-
-
-<body>
-
-
-  <h1>
-    HappyHeadlines — Cache Assignment
-  </h1>
-
-
-  <p class="sub">
-    ArticleCache = periodic warm-up of the latest 14 days.
-    CommentCache = cache-aside with LRU, max 30 article groups.
-  </p>
-
-
-  <p>
-
-    <a
-      href="http://localhost:3000"
-      target="_blank"
-    >
-      Grafana
-    </a>
-
-    ·
-
-    <a
-      href="http://localhost:9090"
-      target="_blank"
-    >
-      Prometheus
-    </a>
-
-  </p>
-
-
-
-  <div class="grid">
-
-
-    <!-- LEFT SIDE -->
-
-    <section class="card">
-
-
-      <h2>
-        Recent articles
-
-        <span
-          id="articlesCache"
-          class="badge"
-        >
-          loading…
-        </span>
-      </h2>
-
-
-      <p class="sub">
-        These articles are inside the latest 14-day window
-        and are periodically pre-loaded into ArticleCache.
-      </p>
-
-
-      <div id="articles"></div>
-
-
-      <hr style="margin:20px 0">
-
-
-      <!-- OLD ARTICLE DEMO -->
-
-      <div class="old-demo">
-
-        <h3>
-          Older article — Cache MISS demo
-        </h3>
-
-
-        <p>
-          <strong>
-            Happy Headline #20
-          </strong>
-        </p>
-
-
-        <p>
-          This article is older than 14 days and therefore is
-          <strong>
-            not included in the periodic warm ArticleCache.
-          </strong>
-        </p>
-
-
-        <button onclick="openArticle(20)">
-          Open old article #20
-        </button>
-
-      </div>
-
-
-    </section>
-
-
-
-    <!-- RIGHT SIDE -->
-
-    <section class="card">
-
-
-      <h2 id="selectedTitle">
-        Select an article
-      </h2>
-
-
-      <p id="selectedDate"></p>
-
-
-      <p id="cacheWindowInfo"></p>
-
-
-      <p id="selectedBody"></p>
-
-
-
-      <div class="info-box">
-
-
-        <p>
-          Article request:
-
-          <span
-            id="articleCache"
-            class="badge"
-          >
-            —
-          </span>
-        </p>
-
-
-        <p>
-          Comments request:
-
-          <span
-            id="commentCache"
-            class="badge"
-          >
-            —
-          </span>
-        </p>
-
-
-      </div>
-
-
-
-      <div id="comments"></div>
-
-
-
-      <h3>
-        Add a comment
-      </h3>
-
-
-      <input
-        id="author"
-        value="Student"
-        placeholder="Author"
-      />
-
-
-      <textarea
-        id="text"
-        placeholder="Write a comment"
-      ></textarea>
-
-
-      <button onclick="postComment()">
-        Post comment
-      </button>
-
-
-    </section>
-
-
-  </div>
-
-
-
-  <!-- QUICK DEMO -->
-
-  <section
-    class="card"
-    style="margin-top:20px"
-  >
-
-
-    <h2>
-      Quick demo
-    </h2>
-
-
-
-    
-
-
-    <p>
-      Posting a comment invalidates that article's comment cache,
-      so the next read becomes a
-
-      <strong>
-        MISS
-      </strong>
-
-      again.
+      h1 {
+        margin-bottom: 4px;
+      }
+
+      .sub {
+        color: #5a6570;
+        margin-top: 0;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+
+      .card {
+        background: white;
+        border-radius: 14px;
+        padding: 18px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+      }
+
+      button {
+        cursor: pointer;
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid #ccd2d8;
+        background: white;
+        margin-right: 6px;
+        margin-bottom: 6px;
+      }
+
+      button:hover {
+        background: #f1f3f5;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: wait;
+      }
+
+      .article {
+        border-bottom: 1px solid #eee;
+        padding: 10px 0;
+      }
+
+      .badge {
+        display: inline-block;
+        font-size: 12px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: #eef2f5;
+        margin-left: 8px;
+      }
+
+      .info-box {
+        background: #f7f9fb;
+        border: 1px solid #dfe5ea;
+        padding: 12px;
+        border-radius: 10px;
+        margin: 12px 0;
+      }
+
+      .old-demo {
+        background: #fff8e8;
+        border: 1px solid #ead9a4;
+        padding: 14px;
+        border-radius: 10px;
+        margin-top: 15px;
+      }
+
+      .lru-demo {
+        background: #eef7ff;
+        border: 1px solid #b8d9f5;
+        padding: 14px;
+        border-radius: 10px;
+        margin-top: 18px;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 9px;
+        margin: 5px 0 10px;
+        border: 1px solid #ccd2d8;
+        border-radius: 8px;
+      }
+
+      pre {
+        white-space: pre-wrap;
+        background: #111820;
+        color: #e8eef4;
+        padding: 12px;
+        border-radius: 8px;
+        min-height: 48px;
+        overflow-x: auto;
+      }
+
+      a {
+        color: #1267c4;
+      }
+
+      #selectedDate {
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      #cacheWindowInfo {
+        color: #5a6570;
+        margin-top: 0;
+      }
+
+      #load30Status {
+        font-weight: 600;
+        margin-left: 8px;
+      }
+
+      @media (max-width: 800px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>HappyHeadlines — Cache Assignment</h1>
+
+    <p class="sub">
+      ArticleCache = periodic warm-up of the latest 14 days. CommentCache =
+      cache-aside with LRU, max 30 article groups.
     </p>
 
-
-
     <p>
-      <strong>
-        LRU:
-      </strong>
+      <a href="http://localhost:3000" target="_blank"> Grafana </a>
 
-      The CommentCache keeps comments for a maximum of
+      ·
 
-      <strong>
-        30 recently accessed articles.
-      </strong>
-
-      When the cache is full and another article is accessed,
-      the
-
-      <strong>
-        Least Recently Used
-      </strong>
-
-      article group is removed.
+      <a href="http://localhost:9090" target="_blank"> Prometheus </a>
     </p>
 
+    <div class="grid">
+      <!-- LEFT SIDE -->
 
+      <section class="card">
+        <h2>
+          Recent articles
 
-    <!-- SIMPLE LRU DEMO -->
+          <span id="articlesCache" class="badge"> loading… </span>
+        </h2>
 
-    <div class="lru-demo">
+        <p class="sub">
+          These articles are inside the latest 14-day window and are
+          periodically pre-loaded into ArticleCache.
+        </p>
 
+        <div id="articles"></div>
 
-      <h3>
-        LRU demonstration
-      </h3>
+        <hr style="margin: 20px 0" />
 
+        <!-- OLD ARTICLE DEMO -->
 
-      <p>
-        First load comments for Article 1 → 30.
-        This fills the CommentCache to its maximum of 30 groups.
-      </p>
+        <div class="old-demo">
+          <h3>Older article — Cache MISS demo</h3>
 
+          <p>
+            <strong> Happy Headline #20 </strong>
+          </p>
 
-      <button
-        id="load30Button"
-        onclick="loadThirtyCommentGroups()"
-      >
-        Load comments 1 → 30
-      </button>
+          <p>
+            This article is older than 14 days and therefore is
+            <strong> not included in the periodic warm ArticleCache. </strong>
+          </p>
 
+          <button onclick="openArticle(20)">Open old article #20</button>
+        </div>
+      </section>
 
-      <span id="load30Status"></span>
+      <!-- RIGHT SIDE -->
 
+      <section class="card">
+        <h2 id="selectedTitle">Select an article</h2>
 
-      <br><br>
+        <p id="selectedDate"></p>
 
+        <p id="cacheWindowInfo"></p>
 
-      <p>
-        After the cache contains 1 → 30,
-        Article 1 is the least recently used group.
-      </p>
+        <p id="selectedBody"></p>
 
+        <div class="info-box">
+          <p>
+            Article request:
 
-      <p>
-        Now manually open Article #31.
-        Its comments will enter the cache,
-        so Article 1 should be removed.
-      </p>
+            <span id="articleCache" class="badge"> — </span>
+          </p>
 
+          <p>
+            Comments request:
 
-      <button onclick="openArticle(31)">
-        Open Article #31
-      </button>
+            <span id="commentCache" class="badge"> — </span>
+          </p>
+        </div>
 
+        <div id="comments"></div>
 
+        <h3>Add a comment</h3>
+
+        <input id="author" value="Student" placeholder="Author" />
+
+        <textarea id="text" placeholder="Write a comment"></textarea>
+
+        <button onclick="postComment()">Post comment</button>
+      </section>
     </div>
 
+    <!-- QUICK DEMO -->
 
+    <section class="card" style="margin-top: 20px">
+      <h2>Quick demo</h2>
 
-    <br>
+      <p>
+        <strong> ArticleCache: </strong>
 
+        Recent articles are pre-loaded by the background process. A recent
+        article should normally give a
 
-    <button onclick="showStatus()">
-      Show cache status
-    </button>
+        <strong> HIT </strong>. An article older than 14 days, such as Article
+        #20, should give a
 
+        <strong> MISS </strong>.
+      </p>
 
-    <pre id="status"></pre>
+      <p>
+        <strong> CommentCache: </strong>
 
+        The first request should be
 
-  </section>
+        <strong> MISS </strong>, and the second request should be
 
+        <strong> HIT </strong>.
+      </p>
 
+      <p>
+        Posting a comment invalidates that article's comment cache, so the next
+        read becomes a
 
-<script>
+        <strong> MISS </strong>
 
+        again.
+      </p>
 
-let currentArticleId = null;
+      <p>
+        <strong> LRU: </strong>
 
+        The CommentCache keeps comments for a maximum of
 
+        <strong> 30 recently accessed articles. </strong>
 
-/*
-==================================================
+        When the cache is full and another article is accessed, the
+
+        <strong> Least Recently Used </strong>
+
+        article group is removed.
+      </p>
+
+      <!-- SIMPLE LRU DEMO -->
+
+      <div class="lru-demo">
+        <h3>LRU demonstration</h3>
+
+        <p>
+          First load comments for Article 1 → 30. This fills the CommentCache to
+          its maximum of 30 groups.
+        </p>
+
+        <button id="load30Button" onclick="loadThirtyCommentGroups()">
+          Load comments 1 → 30
+        </button>
+
+        <span id="load30Status"></span>
+
+        <br /><br />
+
+        <p>
+          After the cache contains 1 → 30, Article 1 is the least recently used
+          group.
+        </p>
+
+        <p>
+          Now manually open Article #31. Its comments will enter the cache, so
+          Article 1 should be removed.
+        </p>
+
+        <button onclick="openArticle(31)">Open Article #31</button>
+      </div>
+
+      <br />
+
+      <button onclick="showStatus()">Show cache status</button>
+
+      <pre id="status"></pre>
+    </section>
+
+    <script>
+      let currentArticleId = null;
+
+      /*
+
 LOAD RECENT ARTICLES
-==================================================
+
 */
 
-async function loadArticles() {
+      async function loadArticles() {
+        const res = await fetch("/api/articles/recent?take=10");
 
+        document.getElementById("articlesCache").textContent =
+          res.headers.get("X-Cache") || "—";
 
-  const res =
-    await fetch(
-      '/api/articles/recent?take=10'
-    );
+        const articles = await res.json();
 
+        const host = document.getElementById("articles");
 
-  document
-    .getElementById('articlesCache')
-    .textContent =
-      res.headers.get('X-Cache') || '—';
+        host.innerHTML = "";
 
+        for (const article of articles) {
+          const div = document.createElement("div");
 
-  const articles =
-    await res.json();
+          div.className = "article";
 
+          const published = new Date(article.publishedAtUtc);
 
-  const host =
-    document.getElementById('articles');
+          const daysOld = calculateDaysOld(published);
 
-
-  host.innerHTML = '';
-
-
-  for (const article of articles) {
-
-
-    const div =
-      document.createElement('div');
-
-
-    div.className =
-      'article';
-
-
-    const published =
-      new Date(article.publishedAtUtc);
-
-
-    const daysOld =
-      calculateDaysOld(published);
-
-
-    div.innerHTML = `
+          div.innerHTML = `
 
       <strong>
         ${escapeHtml(article.title)}
@@ -526,7 +361,7 @@ async function loadArticles() {
       <small>
         Published:
         ${published.toLocaleString()}
-        (${daysOld} day${daysOld === 1 ? '' : 's'} ago)
+        (${daysOld} day${daysOld === 1 ? "" : "s"} ago)
       </small>
 
       <br><br>
@@ -537,184 +372,105 @@ async function loadArticles() {
 
     `;
 
+          div.querySelector("button").onclick = () => openArticle(article.id);
 
-    div
-      .querySelector('button')
-      .onclick =
-        () => openArticle(article.id);
+          host.appendChild(div);
+        }
+      }
 
-
-    host.appendChild(div);
-
-  }
-
-}
-
-
-
-/*
+      /*
 ==================================================
 OPEN ARTICLE
 ==================================================
 */
 
-async function openArticle(id) {
+      async function openArticle(id) {
+        currentArticleId = id;
 
+        const articleRes = await fetch(`/api/articles/${id}`);
 
-  currentArticleId = id;
+        if (!articleRes.ok) {
+          alert(`Could not load article ${id}.`);
 
+          return;
+        }
 
-  const articleRes =
-    await fetch(
-      `/api/articles/${id}`
-    );
+        const article = await articleRes.json();
 
-
-  if (!articleRes.ok) {
-
-
-    alert(
-      `Could not load article ${id}.`
-    );
-
-
-    return;
-
-  }
-
-
-  const article =
-    await articleRes.json();
-
-
-
-  /*
+        /*
   Show ArticleCache HIT / MISS
   */
 
-  document
-    .getElementById('articleCache')
-    .textContent =
-      articleRes.headers.get('X-Cache') || '—';
+        document.getElementById("articleCache").textContent =
+          articleRes.headers.get("X-Cache") || "—";
 
-
-
-  /*
+        /*
   Show title
   */
 
-  document
-    .getElementById('selectedTitle')
-    .textContent =
-      article.title;
+        document.getElementById("selectedTitle").textContent = article.title;
 
-
-
-  /*
+        /*
   Show date
   */
 
-  const published =
-    new Date(article.publishedAtUtc);
+        const published = new Date(article.publishedAtUtc);
 
+        const daysOld = calculateDaysOld(published);
 
-  const daysOld =
-    calculateDaysOld(published);
+        document.getElementById("selectedDate").textContent =
+          `Published: ${published.toLocaleString()} (${daysOld} day${daysOld === 1 ? "" : "s"} ago)`;
 
-
-  document
-    .getElementById('selectedDate')
-    .textContent =
-      `Published: ${published.toLocaleString()} (${daysOld} day${daysOld === 1 ? '' : 's'} ago)`;
-
-
-
-  /*
+        /*
   Explain ArticleCache 14-day rule
   */
 
-  const cacheWindowInfo =
-    document.getElementById(
-      'cacheWindowInfo'
-    );
+        const cacheWindowInfo = document.getElementById("cacheWindowInfo");
 
+        if (daysOld <= 14) {
+          cacheWindowInfo.textContent =
+            "Inside the latest 14-day window → eligible for ArticleCache warm-up.";
+        } else {
+          cacheWindowInfo.textContent =
+            "Older than 14 days → not included in the periodic ArticleCache warm-up.";
+        }
 
-  if (daysOld <= 14) {
-
-
-    cacheWindowInfo.textContent =
-      'Inside the latest 14-day window → eligible for ArticleCache warm-up.';
-
-
-  }
-  else {
-
-
-    cacheWindowInfo.textContent =
-      'Older than 14 days → not included in the periodic ArticleCache warm-up.';
-
-  }
-
-
-
-  /*
+        /*
   Show article body
   */
 
-  document
-    .getElementById('selectedBody')
-    .textContent =
-      article.content;
+        document.getElementById("selectedBody").textContent = article.content;
 
-
-
-  /*
+        /*
   Load comments
   */
 
-  await loadComments();
+        await loadComments();
+      }
 
-}
-
-
-
-/*
+      /*
 ==================================================
 LOAD COMMENTS
 ==================================================
 */
 
-async function loadComments() {
+      async function loadComments() {
+        if (!currentArticleId) {
+          return;
+        }
 
+        const res = await fetch(`/api/comments/article/${currentArticleId}`);
 
-  if (!currentArticleId) {
-    return;
-  }
+        document.getElementById("commentCache").textContent =
+          res.headers.get("X-Cache") || "—";
 
+        const comments = await res.json();
 
-  const res =
-    await fetch(
-      `/api/comments/article/${currentArticleId}`
-    );
+        document.getElementById("comments").innerHTML =
+          comments
 
-
-  document
-    .getElementById('commentCache')
-    .textContent =
-      res.headers.get('X-Cache') || '—';
-
-
-  const comments =
-    await res.json();
-
-
-  document
-    .getElementById('comments')
-    .innerHTML =
-
-      comments
-
-        .map(comment => `
+            .map(
+              (comment) => `
 
           <p>
 
@@ -726,109 +482,61 @@ async function loadComments() {
 
           </p>
 
-        `)
+        `,
+            )
 
-        .join('')
+            .join("") || "<p>No comments.</p>";
+      }
 
-      ||
-
-      '<p>No comments.</p>';
-
-}
-
-
-
-/*
+      /*
 ==================================================
 POST COMMENT
 ==================================================
 */
 
-async function postComment() {
+      async function postComment() {
+        if (!currentArticleId) {
+          alert("Select an article first.");
 
+          return;
+        }
 
-  if (!currentArticleId) {
+        const author = document.getElementById("author").value;
 
+        const text = document.getElementById("text").value;
 
-    alert(
-      'Select an article first.'
-    );
+        const res = await fetch(
+          "/api/comments",
 
+          {
+            method: "POST",
 
-    return;
+            headers: {
+              "Content-Type": "application/json",
+            },
 
-  }
+            body: JSON.stringify({
+              articleId: currentArticleId,
 
+              author: author,
 
-  const author =
-    document
-      .getElementById('author')
-      .value;
+              text: text,
+            }),
+          },
+        );
 
+        if (!res.ok) {
+          alert("Could not post comment.");
 
-  const text =
-    document
-      .getElementById('text')
-      .value;
+          return;
+        }
 
+        document.getElementById("text").value = "";
 
-
-  const res =
-    await fetch(
-
-      '/api/comments',
-
-      {
-
-        method: 'POST',
-
-        headers: {
-          'Content-Type': 'application/json'
-        },
-
-        body: JSON.stringify({
-
-          articleId:
-            currentArticleId,
-
-          author:
-            author,
-
-          text:
-            text
-
-        })
-
+        await loadComments();
       }
 
-    );
-
-
-  if (!res.ok) {
-
-
-    alert(
-      'Could not post comment.'
-    );
-
-
-    return;
-
-  }
-
-
-  document
-    .getElementById('text')
-    .value = '';
-
-
-  await loadComments();
-
-}
-
-
-
-/*
+      /*
 ==================================================
 LOAD COMMENT GROUPS 1 → 30
 ==================================================
@@ -847,273 +555,133 @@ Then manually access Article 31.
 That should cause Article 1 to be evicted.
 */
 
-async function loadThirtyCommentGroups() {
+      async function loadThirtyCommentGroups() {
+        const button = document.getElementById("load30Button");
 
+        const status = document.getElementById("load30Status");
 
-  const button =
-    document.getElementById(
-      'load30Button'
-    );
+        button.disabled = true;
 
+        status.textContent = "Loading...";
 
-  const status =
-    document.getElementById(
-      'load30Status'
-    );
+        try {
+          for (let id = 1; id <= 30; id++) {
+            status.textContent = `Loading ${id} / 30...`;
 
+            await fetch(`/api/comments/article/${id}`);
 
-  button.disabled = true;
-
-
-  status.textContent =
-    'Loading...';
-
-
-  try {
-
-
-    for (
-      let id = 1;
-      id <= 30;
-      id++
-    ) {
-
-
-      status.textContent =
-        `Loading ${id} / 30...`;
-
-
-      await fetch(
-        `/api/comments/article/${id}`
-      );
-
-
-      /*
+            /*
       Small delay so each request has
       a clear access time for LRU.
       */
 
-      await sleep(120);
+            await sleep(120);
+          }
 
-    }
+          status.textContent = "30 / 30 loaded ✅";
 
-
-    status.textContent =
-      '30 / 30 loaded ✅';
-
-
-    /*
+          /*
     Automatically update JSON
     so you can show that 1 → 30
     are currently cached.
     */
 
-    await showStatus();
+          await showStatus();
+        } catch (error) {
+          console.error(error);
 
+          status.textContent = "Error ❌";
+        } finally {
+          button.disabled = false;
+        }
+      }
 
-  }
-  catch (error) {
-
-
-    console.error(error);
-
-
-    status.textContent =
-      'Error ❌';
-
-  }
-  finally {
-
-
-    button.disabled = false;
-
-  }
-
-}
-
-
-
-/*
+      /*
 ==================================================
 SHOW CACHE STATUS
 ==================================================
 */
 
-async function showStatus() {
+      async function showStatus() {
+        const [articleStatus, commentStatus] = await Promise.all([
+          fetch("/api/articles/cache/status").then((response) =>
+            response.json(),
+          ),
 
+          fetch("/api/comments/cache/status").then((response) =>
+            response.json(),
+          ),
+        ]);
 
-  const [
-    articleStatus,
-    commentStatus
-  ] =
+        document.getElementById("status").textContent = JSON.stringify(
+          {
+            articleCache: articleStatus,
 
-    await Promise.all([
+            commentCache: commentStatus,
+          },
 
+          null,
 
-      fetch(
-        '/api/articles/cache/status'
-      )
-      .then(
-        response =>
-          response.json()
-      ),
+          2,
+        );
+      }
 
-
-      fetch(
-        '/api/comments/cache/status'
-      )
-      .then(
-        response =>
-          response.json()
-      )
-
-
-    ]);
-
-
-  document
-    .getElementById('status')
-    .textContent =
-
-      JSON.stringify(
-
-        {
-
-          articleCache:
-            articleStatus,
-
-          commentCache:
-            commentStatus
-
-        },
-
-        null,
-
-        2
-
-      );
-
-}
-
-
-
-/*
+      /*
 ==================================================
 SMALL DELAY FOR LRU ORDER
 ==================================================
 */
 
-function sleep(milliseconds) {
+      function sleep(milliseconds) {
+        return new Promise((resolve) => setTimeout(resolve, milliseconds));
+      }
 
-
-  return new Promise(
-
-    resolve =>
-      setTimeout(
-        resolve,
-        milliseconds
-      )
-
-  );
-
-}
-
-
-
-/*
+      /*
 ==================================================
 CALCULATE ARTICLE AGE
 ==================================================
 */
 
-function calculateDaysOld(
-  publishedDate
-) {
+      function calculateDaysOld(publishedDate) {
+        const now = new Date();
 
+        const diff = now.getTime() - publishedDate.getTime();
 
-  const now =
-    new Date();
+        return Math.floor(diff / (1000 * 60 * 60 * 24));
+      }
 
-
-  const diff =
-
-    now.getTime()
-    -
-    publishedDate.getTime();
-
-
-  return Math.floor(
-
-    diff
-    /
-    (
-      1000
-      *
-      60
-      *
-      60
-      *
-      24
-    )
-
-  );
-
-}
-
-
-
-/*
+      /*
 ==================================================
 ESCAPE HTML
 ==================================================
 */
 
-function escapeHtml(value) {
+      function escapeHtml(value) {
+        return String(value).replace(
+          /[&<>'"]/g,
 
+          (character) =>
+            ({
+              "&": "&amp;",
 
-  return String(value)
+              "<": "&lt;",
 
-    .replace(
+              ">": "&gt;",
 
-      /[&<>'"]/g,
+              "'": "&#39;",
 
-      character => ({
+              '"': "&quot;",
+            })[character],
+        );
+      }
 
-        '&':
-          '&amp;',
-
-        '<':
-          '&lt;',
-
-        '>':
-          '&gt;',
-
-        "'":
-          '&#39;',
-
-        '"':
-          '&quot;'
-
-      }[character])
-
-    );
-
-}
-
-
-
-/*
+      /*
 ==================================================
 START
 ==================================================
 */
 
-loadArticles();
-
-
-</script>
-
-
-</body>
-
+      loadArticles();
+    </script>
+  </body>
 </html>
