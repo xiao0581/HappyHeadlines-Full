@@ -20,6 +20,8 @@ jobs:
         service:
           - article-service
           - comment-service
+          - subscriber-service
+          - newsletter-service
           - web
 
     steps:

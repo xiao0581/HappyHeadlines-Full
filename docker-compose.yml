@@ -1,4 +1,6 @@
+
 services:
+  # Article Database
   article-db:
     image: postgres:16-alpine
     environment:
@@ -13,6 +15,7 @@ services:
       timeout: 3s
       retries: 20
 
+  # Comment Database
   comment-db:
     image: postgres:16-alpine
     environment:
@@ -27,6 +30,52 @@ services:
       timeout: 3s
       retries: 20
 
+  # Subscriber Database
+  subscriber-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: subscribers
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - subscriber-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d subscribers"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # RabbitMQ
+  subscriber-queue:
+    image: rabbitmq:3-management
+    hostname: subscriber-queue
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: subscriber
+      RABBITMQ_DEFAULT_PASS: subscriber-dev-password
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - subscriber-queue-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  # FeatureHub
+  featurehub:
+    image: featurehub/party-server:latest
+    user: "999:999"
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8085:8085"
+    volumes:
+      - featurehub-data:/db
+
+  # Article Cache
   article-cache:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
@@ -38,6 +87,7 @@ services:
       timeout: 3s
       retries: 20
 
+  # Comment Cache
   comment-cache:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
@@ -49,6 +99,7 @@ services:
       timeout: 3s
       retries: 20
 
+  # Article Service
   article-service:
     build:
       context: ./apps/article-service
@@ -67,6 +118,7 @@ services:
       article-cache:
         condition: service_healthy
 
+  # Comment Service
   comment-service:
     build:
       context: ./apps/comment-service
@@ -83,6 +135,46 @@ services:
       comment-cache:
         condition: service_healthy
 
+  # Subscriber Service + FeatureHub
+  subscriber-service:
+    build:
+      context: ./apps/subscriber-service
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__SubscriberDb: Host=subscriber-db;Port=5432;Database=subscribers;Username=postgres;Password=postgres
+
+      RabbitMq__Host: subscriber-queue
+      RabbitMq__Username: subscriber
+      RabbitMq__Password: subscriber-dev-password
+
+      FEATUREHUB_EDGE_URL: http://featurehub:8085
+      FEATUREHUB_API_KEY: ${FEATUREHUB_API_KEY:?Set FEATUREHUB_API_KEY first}
+
+    ports:
+      - "5003:8080"
+
+    depends_on:
+      subscriber-db:
+        condition: service_healthy
+      subscriber-queue:
+        condition: service_healthy
+      featurehub:
+        condition: service_started
+
+  # Newsletter Service
+  newsletter-service:
+    build:
+      context: ./apps/newsletter-service
+    restart: unless-stopped
+    environment:
+      RabbitMq__Host: subscriber-queue
+      RabbitMq__Username: subscriber
+      RabbitMq__Password: subscriber-dev-password
+    depends_on:
+      subscriber-queue:
+        condition: service_healthy
+
+  # Prometheus
   prometheus:
     image: prom/prometheus:v2.55.0
     command:
@@ -96,6 +188,7 @@ services:
       - article-service
       - comment-service
 
+  # Grafana
   grafana:
     image: grafana/grafana:11.2.0
     environment:
@@ -111,6 +204,7 @@ services:
     depends_on:
       - prometheus
 
+  # Web Frontend
   web:
     build:
       context: ./apps/web
@@ -123,6 +217,9 @@ services:
 volumes:
   article-db-data:
   comment-db-data:
+  subscriber-db-data:
+  subscriber-queue-data:
+  featurehub-data:
   article-cache-data:
   comment-cache-data:
   prometheus-data:
